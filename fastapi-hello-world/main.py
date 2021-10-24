@@ -1,10 +1,11 @@
 # python
+from os import path
 from typing import Optional
 from enum import Enum # nos permite crear enumeraciones
 # pydantic
 from pydantic import BaseModel, Field
 # fastapi
-from fastapi import FastAPI, Body, Query, Path
+from fastapi import FastAPI, Body, Query, Path, status
 
 
 app = FastAPI()
@@ -18,7 +19,7 @@ class HairColor(Enum):
     red = "red"
 
 # models
-class Person(BaseModel):
+class PersonBase(BaseModel):
     first_name: str = Field(
         ...,
         min_length=1,
@@ -40,6 +41,9 @@ class Person(BaseModel):
     hair_color: Optional[HairColor] = Field(default=None, example=HairColor.black)
     is_married: Optional[bool] = Field(default=None, example=False)
     
+class Person(PersonBase):
+    password: str = Field(..., min_length=8)
+    
     # las validaciones de request body se hacen en el modelo
     # class Config:
     #     schema_extra = {
@@ -51,6 +55,9 @@ class Person(BaseModel):
     #             "is_married": "false"
     #         }
     #     }
+    
+class PersonOut(PersonBase):
+    pass # Keyword de python que dice que no se hace nada
 
 class Location(BaseModel):
     city: str = Field(..., min_length=3)
@@ -62,7 +69,10 @@ class Location(BaseModel):
 # path operation: es un decorador que define el método
 # que se usará
 # - el parametro pasado e
-@app.get('/')
+@app.get(
+    path='/',
+    status_code=status.HTTP_200_OK
+    )
 def home():
     return {
         'hello': 'world'
@@ -70,13 +80,20 @@ def home():
 
 
 # request and response body
-@app.post("/person/new")
+@app.post(
+    path="/person/new",
+    response_model=PersonOut,
+    status_code=status.HTTP_201_CREATED
+    )
 def create_person(person: Person=Body(...)): # el ... significa que el parametro es obligatorio
     return person
 
 
 # validaciones query parameters
-@app.get('/person/detail')
+@app.get(
+    path='/person/detail',
+    status_code=status.HTTP_200_OK
+    )
 def show_person(
     name: Optional[str] = Query(
         None,
@@ -97,7 +114,10 @@ def show_person(
 
 
 # validatiosn: path parameters
-@app.get('/person/detail/{person_id}')
+@app.get(
+    path='/person/detail/{person_id}',
+    status_code=status.HTTP_200_OK
+    )
 def show_person(
     person_id: int = Path(
         ...,
@@ -113,7 +133,10 @@ def show_person(
     
 
 # validations: request body
-@app.put("/person/{person_id}")
+@app.put(
+    path="/person/{person_id}",
+    status_code=status.HTTP_202_ACCEPTED
+    )
 def update_person(
     person_id: int = Path(
         ...,
