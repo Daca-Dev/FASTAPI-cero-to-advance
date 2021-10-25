@@ -1,11 +1,18 @@
 # python
 from os import path
 from typing import Optional
-from enum import Enum # nos permite crear enumeraciones
+from enum import Enum # nos permite crear enumeraciones 
 # pydantic
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel, Field, EmailStr
+)
 # fastapi
-from fastapi import FastAPI, Body, Query, Path, status
+from fastapi import (
+    FastAPI, Body, Query,
+    Path, status, Form,
+    Header, Cookie, UploadFile,
+    File, HTTPException
+)
 
 
 app = FastAPI()
@@ -64,6 +71,9 @@ class Location(BaseModel):
     state: str = Field(..., min_length=3)
     country: str = Field(..., min_length=3)
 
+class LoginOut(BaseModel):
+    username: str = Field(..., max_length=20, example='Daca1953')
+    messagge: str = Field(default='Login Succesfull')
 
 
 # path operation: es un decorador que define el método
@@ -71,7 +81,8 @@ class Location(BaseModel):
 # - el parametro pasado e
 @app.get(
     path='/',
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    tags=['Home',]
     )
 def home():
     return {
@@ -83,16 +94,31 @@ def home():
 @app.post(
     path="/person/new",
     response_model=PersonOut,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    tags=['Persons',],
+    summary= "Create person in the app"# titulo personalisado para el path operation
     )
 def create_person(person: Person=Body(...)): # el ... significa que el parametro es obligatorio
+    """
+    # Create person
+    
+    This path operation create a person in the app and save the information in the database
+    
+    Parameters:
+    - Request Body parameter:
+        - **person: Person** -> A person model with first name, last name, age, haur color and if is married
+    
+    Return a person model with first name, last name, age, hair color and marital status
+    """
     return person
 
 
 # validaciones query parameters
 @app.get(
     path='/person/detail',
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    tags=['Persons',],
+    deprecated=True
     )
 def show_person(
     name: Optional[str] = Query(
@@ -114,9 +140,13 @@ def show_person(
 
 
 # validatiosn: path parameters
+
+persons = [1,2,3,4,5] # personas registradas
+
 @app.get(
     path='/person/detail/{person_id}',
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    tags=['Persons',]
     )
 def show_person(
     person_id: int = Path(
@@ -127,6 +157,12 @@ def show_person(
         example = 123
     )
 ):
+    if person_id not in persons:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail= "This person Doesn't exist" # mensaje del error
+        )
+    
     return {
         person_id: "it exists!"
     }
@@ -135,7 +171,8 @@ def show_person(
 # validations: request body
 @app.put(
     path="/person/{person_id}",
-    status_code=status.HTTP_202_ACCEPTED
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=['Persons',]
     )
 def update_person(
     person_id: int = Path(
@@ -151,3 +188,56 @@ def update_person(
     result = person.dict()
     result.update(location.dict())
     return person
+
+# Formularios
+@app.post(
+    path='/login',
+    response_model=LoginOut,
+    status_code=status.HTTP_200_OK,
+    tags=['Home',]
+)
+def login(username: str = Form(...), password: str = Form(...)):
+    return LoginOut(username=username)
+
+# Cookies and headers parameters
+@app.post(
+    path="/contact",
+    status_code=status.HTTP_200_OK,
+    tags=['Home',]
+)
+def contact(
+    first_name: str = Form(
+        ...,
+        max_length=20,
+        min_length=1
+    ),
+    last_name: str = Form(
+        ...,
+        max_length=20,
+        min_length=1
+    ),
+    email: EmailStr = Form(...),
+    message: str = Form(
+        ...,
+        min_length=20
+    ),
+    # parametros de headers
+    user_agent: Optional[str] = Header(default=None), # cabecera que nos dice quien esta trantando de usar el endpoint
+    asd: Optional[str] = Cookie(default=None)
+):
+    return user_agent
+
+# Files
+@app.post(
+    path='/post-image',
+    status_code=status.HTTP_200_OK,
+    tags=['Files',]
+)
+def post_image(
+    image: UploadFile = File(...)
+):
+    return {
+        "filename": image.filename,
+        "format": image.content_type,
+        "size(KB)": round(len(image.file.read()) / 1024, ndigits=2)
+    }
